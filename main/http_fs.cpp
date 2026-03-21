@@ -1,6 +1,7 @@
 #include "lvgl.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
+#include "esp_crt_bundle.h"
 #include <string.h>
 
 static const char *TAG = "HTTP_FS";
@@ -24,6 +25,7 @@ static void *fs_open(lv_fs_drv_t *drv, const char *path, lv_fs_mode_t mode) {
     config.buffer_size_tx = 1024;
     // Set a timeout to prevent hanging UI
     config.timeout_ms = 5000;
+    config.crt_bundle_attach = esp_crt_bundle_attach;
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) {
