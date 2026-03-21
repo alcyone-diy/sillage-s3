@@ -52,36 +52,46 @@ static lv_result_t jpeg_esp_decoder_info(lv_image_decoder_t * decoder, lv_image_
 }
 
 static lv_result_t jpeg_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_decoder_dsc_t * dsc) {
+    ESP_LOGI("TileDecoder", "jpeg_esp_decoder_open called for src: %s", (const char*)dsc->src);
     if(dsc->src_type == LV_IMAGE_SRC_FILE) {
         const char * lv_path = (const char *)dsc->src;
         if(strstr(lv_path, ".jpg") != NULL || strstr(lv_path, ".jpeg") != NULL) {
             char posix_path[128];
             if (lv_path[0] == 'S' && lv_path[1] == ':') {
                 snprintf(posix_path, sizeof(posix_path), "/sdcard%s", lv_path + 2);
+                ESP_LOGI("TileDecoder", "Resolved posix path: %s", posix_path);
             } else {
+                ESP_LOGE("TileDecoder", "Invalid prefix format in path: %s", lv_path);
                 return LV_RESULT_INVALID;
             }
 
             FILE* f = fopen(posix_path, "rb");
-            if(!f) return LV_RESULT_INVALID;
+            if(!f) {
+                ESP_LOGE("TileDecoder", "fopen failed for %s", posix_path);
+                return LV_RESULT_INVALID;
+            }
 
             fseek(f, 0, SEEK_END);
             long file_size = ftell(f);
             fseek(f, 0, SEEK_SET);
+            ESP_LOGI("TileDecoder", "File %s opened, size: %ld", posix_path, file_size);
 
             // Use INTERNAL RAM for compressed data - MUCH faster for the decoder
             uint8_t* jpeg_data = (uint8_t*)heap_caps_malloc(file_size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
             if(!jpeg_data) {
+                ESP_LOGW("TileDecoder", "INTERNAL RAM allocation failed, fallback to PSRAM");
                 // Fallback to PSRAM if internal is full, but it will be slower
                 jpeg_data = (uint8_t*)heap_caps_malloc(file_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
             }
 
             if(!jpeg_data) {
+                ESP_LOGE("TileDecoder", "Memory allocation failed for %ld bytes", file_size);
                 fclose(f);
                 return LV_RESULT_INVALID;
             }
 
-            fread(jpeg_data, 1, file_size, f);
+            size_t bytes_read = fread(jpeg_data, 1, file_size, f);
+            ESP_LOGI("TileDecoder", "Read %zu bytes from %s", bytes_read, posix_path);
             fclose(f);
 
             jpeg_dec_config_t config = DEFAULT_JPEG_DEC_CONFIG();
@@ -90,6 +100,7 @@ static lv_result_t jpeg_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_
             jpeg_dec_handle_t jpeg_dec;
             jpeg_error_t jerr = jpeg_dec_open(&config, &jpeg_dec);
             if(jerr != JPEG_ERR_OK) {
+                ESP_LOGE("TileDecoder", "jpeg_dec_open failed with error: %d", jerr);
                 free(jpeg_data);
                 return LV_RESULT_INVALID;
             }
@@ -105,6 +116,7 @@ static lv_result_t jpeg_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_
             jpeg_dec_header_info_t out_info;
             jerr = jpeg_dec_parse_header(jpeg_dec, &io, &out_info);
             if(jerr != JPEG_ERR_OK) {
+                ESP_LOGE("TileDecoder", "jpeg_dec_parse_header failed with error: %d", jerr);
                 jpeg_dec_close(jpeg_dec);
                 free(jpeg_data);
                 return LV_RESULT_INVALID;
@@ -114,9 +126,11 @@ static lv_result_t jpeg_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_
             uint32_t h = out_info.height;
             uint32_t stride = w * 2;
             uint32_t data_size = stride * h;
+            ESP_LOGI("TileDecoder", "JPEG parsed. W: %lu, H: %lu, Stride: %lu, Size: %lu", w, h, stride, data_size);
 
             lv_draw_buf_t * draw_buf = (lv_draw_buf_t *)lv_malloc(sizeof(lv_draw_buf_t));
             if(!draw_buf) {
+                ESP_LOGE("TileDecoder", "lv_malloc failed for draw_buf");
                 jpeg_dec_close(jpeg_dec);
                 free(jpeg_data);
                 return LV_RESULT_INVALID;
@@ -124,6 +138,7 @@ static lv_result_t jpeg_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_
 
             void * data = heap_caps_aligned_alloc(16, data_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
             if(!data) {
+                ESP_LOGE("TileDecoder", "heap_caps_aligned_alloc failed for %lu bytes", data_size);
                 lv_free(draw_buf);
                 jpeg_dec_close(jpeg_dec);
                 free(jpeg_data);
@@ -140,12 +155,14 @@ static lv_result_t jpeg_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_
             free(jpeg_data);
 
             if (jerr != JPEG_ERR_OK) {
+                ESP_LOGE("TileDecoder", "jpeg_dec_process failed with error: %d", jerr);
                 heap_caps_free(data);
                 lv_free(draw_buf);
                 return LV_RESULT_INVALID;
             }
 
             dsc->decoded = draw_buf;
+            ESP_LOGI("TileDecoder", "jpeg_esp_decoder_open SUCCESS!");
             return LV_RESULT_OK;
         }
     }

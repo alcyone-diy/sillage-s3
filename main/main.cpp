@@ -381,15 +381,28 @@ void lvgl_init_task(void *arg) {
     }
 
 #if TEST_SCREEN
+    ESP_LOGI(TAG, "Entering TEST_SCREEN mode");
     lv_obj_t *scr = lv_screen_active();
     lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
 
     TileEngine::lv_jpeg_esp_decoder_init();
 
+    const char* path = "/sdcard/tiles-jpg/12/2034/1455.jpg";
+    FILE* f = fopen(path, "rb");
+    if (f) {
+        fseek(f, 0, SEEK_END);
+        long size = ftell(f);
+        fclose(f);
+        ESP_LOGI(TAG, "SUCCESS: File %s found, size: %ld bytes", path, size);
+    } else {
+        ESP_LOGE(TAG, "ERROR: Could NOT open file %s", path);
+    }
+
     lv_obj_t *img = lv_image_create(scr);
     lv_image_set_src(img, "S:/tiles-jpg/12/2034/1455.jpg");
     lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
+    ESP_LOGI(TAG, "Image source set to S:/tiles-jpg/12/2034/1455.jpg");
 #else
     // Initialize Tile Engine
     static TileEngine engine;
