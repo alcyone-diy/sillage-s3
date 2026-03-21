@@ -186,11 +186,15 @@ static void * fs_open(lv_fs_drv_t * drv, const char * path, lv_fs_mode_t mode) {
     // The path passed by LVGL will be exactly what's after the drive letter and colon.
     // e.g., if we pass "S:/tiles-jpg/...", path is "/tiles-jpg/...".
     snprintf(posix_path, sizeof(posix_path), "/sdcard%s", path);
-    ESP_LOGI("CustomFS", "fs_open called for: %s", posix_path);
+    ESP_LOGI("CustomFS", "fs_open called for: %s (flags: %s)", posix_path, flags);
 
     FILE * f = fopen(posix_path, flags);
-    if(f == NULL) return NULL;
+    if(f == NULL) {
+        ESP_LOGE("CustomFS", "fopen FAILED for: %s", posix_path);
+        return NULL;
+    }
 
+    ESP_LOGI("CustomFS", "fopen SUCCEEDED for: %s", posix_path);
     fseek(f, 0, SEEK_SET);
 
     return (void *)f;

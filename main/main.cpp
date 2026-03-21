@@ -290,14 +290,20 @@ esp_err_t init_sd_card(void) {
 
 // LVGL Flush Callback
 void lvgl_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
-    esp_lcd_panel_draw_bitmap(lcd_panel, area->x1, area->y1, area->x2 + 1, area->y2 + 1, px_map);
-    lv_display_flush_ready(disp);
+    // For DIRECT mode with RGB panels, drawing is handled by the DMA automatically reading the framebuffer.
+    // We only need to tell the driver to flip the active buffer if we just finished the last area.
+    if (lv_display_flush_is_last(disp)) {
+        // Just call draw_bitmap with the current buffer to flip the hardware pointers
+        esp_lcd_panel_draw_bitmap(lcd_panel, 0, 0, LCD_H_RES, LCD_V_RES, px_map);
 
-    if (measure_next_flush && lv_display_flush_is_last(disp)) {
-        int64_t end_time = esp_timer_get_time();
-        ESP_LOGI("TIMING", "TOTAL SCREEN UPDATE TIME: %lld us", (end_time - update_start_time));
-        measure_next_flush = false;
+        if (measure_next_flush) {
+            int64_t end_time = esp_timer_get_time();
+            ESP_LOGI("TIMING", "TOTAL SCREEN UPDATE TIME: %lld us", (end_time - update_start_time));
+            measure_next_flush = false;
+        }
     }
+
+    lv_display_flush_ready(disp);
 }
 
 // LVGL Tick Callback
@@ -352,19 +358,16 @@ void lvgl_init_task(void *arg) {
     // Resize image cache (4MB in PSRAM)
     lv_image_cache_resize(4 * 1024 * 1024, false);
 
-    // Use full framebuffers in PSRAM for smooth double-buffering
-    uint32_t buffer_size = LCD_H_RES * LCD_V_RES;
-    lv_color_t *buf1 = (lv_color_t *)heap_caps_malloc(buffer_size * sizeof(lv_color_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    lv_color_t *buf2 = (lv_color_t *)heap_caps_malloc(buffer_size * sizeof(lv_color_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    // For ESP32-S3 RGB Panel with fb_in_psram, we must use the driver-allocated framebuffers directly.
+    void *buf1 = NULL;
+    void *buf2 = NULL;
+    ESP_ERROR_CHECK(esp_lcd_rgb_panel_get_frame_buffer(lcd_panel, 2, &buf1, &buf2));
 
-    if (!buf1 || !buf2) {
-        ESP_LOGE(TAG, "Failed to allocate LVGL draw buffers in PSRAM");
-        abort();
-    }
+    uint32_t buffer_size = LCD_H_RES * LCD_V_RES;
 
     // Initialize LVGL Display
     lv_display_t *disp = lv_display_create(LCD_H_RES, LCD_V_RES);
-    lv_display_set_buffers(disp, buf1, buf2, buffer_size * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_FULL);
+    lv_display_set_buffers(disp, buf1, buf2, buffer_size * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_DIRECT);
     lv_display_set_flush_cb(disp, lvgl_flush_cb);
 
     // Register Touch Input Device
