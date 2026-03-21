@@ -177,6 +177,7 @@ void hardware_init(void) {
     panel_conf.timings.vsync_pulse_width = 4;
     panel_conf.timings.flags.pclk_active_neg = 1;
     panel_conf.flags.fb_in_psram = 1;
+    panel_conf.bounce_buffer_size_px = 10 * LCD_H_RES; // Essential for fb_in_psram without tearing/black screen
     ESP_ERROR_CHECK(esp_lcd_new_rgb_panel(&panel_conf, &lcd_panel));
     ESP_ERROR_CHECK(esp_lcd_panel_reset(lcd_panel));
     ESP_ERROR_CHECK(esp_lcd_panel_init(lcd_panel));
@@ -383,12 +384,20 @@ void lvgl_init_task(void *arg) {
     }
 
     // Initialize Tile Engine
-    static TileEngine engine;
-    engine.init();
+    // static TileEngine engine;
+    // engine.init();
+    // engine.setMapCenter(/*lat=*/-25.0, /*lon=*/25.0, /*zoom=*/8);
 
-    engine.setMapCenter(/*lat=*/-25.0, /*lon=*/25.0, /*zoom=*/8);
+    // SIMPLE HELLO WORLD TEST
+    lv_obj_set_style_bg_color(lv_screen_active(), lv_color_make(255, 0, 0), 0); // RED background
+    lv_obj_set_style_bg_opa(lv_screen_active(), LV_OPA_COVER, 0);
 
-    ESP_LOGI(TAG, "LVGL initialization complete. Entering main loop...");
+    lv_obj_t * label = lv_label_create(lv_screen_active());
+    lv_label_set_text(label, "Hello World from LVGL!");
+    lv_obj_set_style_text_color(label, lv_color_make(255, 255, 255), 0); // WHITE text
+    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+
+    ESP_LOGI(TAG, "LVGL initialization complete (Hello World test). Entering main loop...");
 
     // Periodic LVGL Task execution
     while (1) {
