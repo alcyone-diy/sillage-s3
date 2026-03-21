@@ -20,6 +20,7 @@
 
 static const char *TAG = "TILES_PROTOTYPE";
 
+#define TEST_SCREEN          1
 // --- Hardware Pins ---
 #define I2C_SDA_PIN          8
 #define I2C_SCL_PIN          9
@@ -379,11 +380,21 @@ void lvgl_init_task(void *arg) {
         lv_indev_set_read_cb(indev, lvgl_touch_read_cb);
     }
 
+#if TEST_SCREEN
+    lv_obj_t *scr = lv_screen_active();
+    lv_obj_set_style_bg_color(scr, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
+
+    lv_obj_t *label = lv_label_create(scr);
+    lv_label_set_text(label, "Hello World");
+    lv_obj_set_style_text_color(label, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+#else
     // Initialize Tile Engine
     static TileEngine engine;
     engine.init();
-
     engine.setMapCenter(/*lat=*/-25.0, /*lon=*/25.0, /*zoom=*/8);
+#endif
 
     ESP_LOGI(TAG, "LVGL initialization complete. Entering main loop...");
 
