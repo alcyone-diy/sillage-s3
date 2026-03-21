@@ -15,17 +15,26 @@
 #define JPEG_FORMAT   1
 #define PNG_FORMAT    2
 #define RGB565_FORMAT 3
+
+#if USE_HTTP_TILES
+#define TILE_FORMAT PNG_FORMAT
+#else
 #define TILE_FORMAT JPEG_FORMAT
+#endif
 
 #if TILE_FORMAT == JPEG_FORMAT
-#define TILE_EXTENTION "jpg"
+#define TILE_EXTENTION ".jpg"
 #define TILE_PATH_BASE_DIR "/tiles-jpg"
 #elif TILE_FORMAT == PNG_FORMAT
-#define TILE_EXTENTION "png"
+#define TILE_EXTENTION "/png"
 #define TILE_PATH_BASE_DIR "/tiles-png"
 #elif TILE_FORMAT == RGB565_FORMAT
-#define TILE_EXTENTION "rgb565"
+#define TILE_EXTENTION ".rgb565"
 #define TILE_PATH_BASE_DIR "/tiles-rgb565"
+#endif
+
+#if USE_HTTP_TILES
+#include "secrets.h"
 #endif
 
 static const char* TAG = "TileEngine";
@@ -335,11 +344,19 @@ void TileEngine::tileToLatLon(double x, double y, int zoom, double& lat, double&
 }
 
 void TileEngine::getTilePath(char* buf, size_t buf_size, int zoom, int x, int y, bool for_lvgl) {
+#if USE_HTTP_TILES
     if (for_lvgl) {
-        snprintf(buf, buf_size, "%s%s/%d/%d/%d." TILE_EXTENTION, LV_DRIVE_PREFIX, TILE_PATH_BASE_DIR, zoom, x, y);
+        snprintf(buf, buf_size, "H:tiles.geogarage.com/%s/shom/%d/%d/%d%s", GEOGARAGE_API_KEY, zoom, x, y, TILE_EXTENTION);
     } else {
-        snprintf(buf, buf_size, "/sdcard%s/%d/%d/%d." TILE_EXTENTION, TILE_PATH_BASE_DIR, zoom, x, y);
+        snprintf(buf, buf_size, "https://tiles.geogarage.com/%s/shom/%d/%d/%d%s", GEOGARAGE_API_KEY, zoom, x, y, TILE_EXTENTION);
     }
+#else
+    if (for_lvgl) {
+        snprintf(buf, buf_size, "%s%s/%d/%d/%d%s", LV_DRIVE_PREFIX, TILE_PATH_BASE_DIR, zoom, x, y, TILE_EXTENTION);
+    } else {
+        snprintf(buf, buf_size, "/sdcard%s/%d/%d/%d%s", TILE_PATH_BASE_DIR, zoom, x, y, TILE_EXTENTION);
+    }
+#endif
 }
 
 // Structure to hold multi-touch data (shared with main.cpp)
@@ -480,6 +497,11 @@ void TileEngine::updateTiles(double lat, double lon, int zoom) {
 }
 
 void TileEngine::loadConfig() {
+#if USE_HTTP_TILES
+    _min_zoom = 1;
+    _max_zoom = 18;
+    ESP_LOGI(TAG, "Using internet geogarage tiles. Allowed zoom: %d to %d", _min_zoom, _max_zoom);
+#else
     char base_path[128];
     snprintf(base_path, sizeof(base_path), "/sdcard%s", TILE_PATH_BASE_DIR);
 
@@ -518,6 +540,7 @@ void TileEngine::loadConfig() {
         _min_zoom = 1;
         _max_zoom = 18;
     }
+#endif
 }
 
 #if TILE_DEBUG

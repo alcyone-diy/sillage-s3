@@ -17,6 +17,13 @@
 #include "sdmmc_cmd.h"
 #include "driver/sdspi_host.h"
 #include "TileEngine.hpp"
+#include "esp_wifi.h"
+#include "nvs_flash.h"
+#include "esp_event.h"
+#if USE_HTTP_TILES
+#include "secrets.h"
+#include "freertos/event_groups.h"
+#endif
 
 static const char *TAG = "TILES_PROTOTYPE";
 
@@ -70,6 +77,11 @@ extern "C" {
     volatile bool measure_next_flush = false;
 }
 
+#if USE_HTTP_TILES
+static EventGroupHandle_t wifi_event_group;
+const int WIFI_CONNECTED_BIT = BIT0;
+#endif
+
 // Structure to hold multi-touch data for the TileEngine
 struct TouchUserData {
     esp_lcd_touch_handle_t tp;
@@ -79,6 +91,10 @@ struct TouchUserData {
 
 void hardware_init(void);
 esp_err_t init_sd_card(void);
+#if USE_HTTP_TILES
+void wifi_init(void);
+extern void lv_http_fs_init(void);
+#endif
 void lvgl_init_task(void *arg);
 
 void i2c_scan(void) {
@@ -92,10 +108,75 @@ void i2c_scan(void) {
 }
 
 extern "C" void app_main(void) {
+#if USE_HTTP_TILES
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    wifi_event_group = xEventGroupCreate();
+    wifi_init();
+
+    ESP_LOGI(TAG, "Waiting for Wi-Fi connection...");
+    xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
+    ESP_LOGI(TAG, "Wi-Fi connected! Starting system...");
+#endif
+
     hardware_init();
     lvgl_mux = xSemaphoreCreateRecursiveMutex();
     xTaskCreate(lvgl_init_task, "LVGL", 1024 * 16, NULL, 5, NULL);
 }
+
+#if USE_HTTP_TILES
+static void wifi_event_handler(void* arg, esp_event_base_t event_base,
+                               int32_t event_id, void* event_data) {
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+        esp_wifi_connect();
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        xEventGroupClearBits(wifi_event_group, WIFI_CONNECTED_BIT);
+        esp_wifi_connect();
+        ESP_LOGI(TAG, "Retrying connection to the AP");
+    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+        ESP_LOGI(TAG, "Got IP:" IPSTR, IP2STR(&event->ip_info.ip));
+        xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
+    }
+}
+
+void wifi_init(void) {
+    ESP_LOGI(TAG, "Initializing Wi-Fi...");
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    esp_netif_create_default_wifi_sta();
+
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    esp_event_handler_instance_t instance_any_id;
+    esp_event_handler_instance_t instance_got_ip;
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+                                                        ESP_EVENT_ANY_ID,
+                                                        &wifi_event_handler,
+                                                        NULL,
+                                                        &instance_any_id));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
+                                                        IP_EVENT_STA_GOT_IP,
+                                                        &wifi_event_handler,
+                                                        NULL,
+                                                        &instance_got_ip));
+
+    wifi_config_t wifi_config = {};
+    strcpy((char*)wifi_config.sta.ssid, WIFI_SSID);
+    strcpy((char*)wifi_config.sta.password, WIFI_PASSWORD);
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_LOGI(TAG, "Wi-Fi initialization complete.");
+}
+#endif
 
 void hardware_init(void) {
     ESP_LOGI(TAG, "Hardware stabilization (1.5s)...");
@@ -244,11 +325,15 @@ void hardware_init(void) {
     ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_gt911(tp_io_handle, &tp_cfg, &tp_handle));
     ESP_LOGI(TAG, "Touch controller initialized successfully.");
 
+#if !USE_HTTP_TILES
    // SD Card Initialization
     esp_err_t ret = init_sd_card();
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to mount SD card (%s).", esp_err_to_name(ret));
     }
+#else
+    ESP_LOGI(TAG, "SD Card initialization bypassed.");
+#endif
 }
 
 esp_err_t init_sd_card(void) {
@@ -378,6 +463,11 @@ void lvgl_init_task(void *arg) {
         lv_indev_set_user_data(indev, &touch_user_data);
         lv_indev_set_read_cb(indev, lvgl_touch_read_cb);
     }
+
+#if USE_HTTP_TILES
+    // Register HTTP FS Driver
+    lv_http_fs_init();
+#endif
 
     // Initialize Tile Engine
     static TileEngine engine;

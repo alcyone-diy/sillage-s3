@@ -7,6 +7,9 @@
 
 #define TILE_DEBUG 1
 
+// Set to 1 to use HTTP downloads (Geogarage), 0 to use SD Card (local tiles)
+#define USE_HTTP_TILES 1
+
 class TileEngine {
 public:
     TileEngine();
@@ -25,7 +28,7 @@ private:
         int x_idx;
         int y_idx;
         int zoom;
-        char path[64];
+        char path[256];
     };
 
     static constexpr int TILE_SIZE = 256;
