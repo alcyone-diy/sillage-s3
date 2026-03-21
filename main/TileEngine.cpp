@@ -59,7 +59,7 @@ static lv_result_t jpeg_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_
         if(strstr(lv_path, ".jpg") != NULL || strstr(lv_path, ".jpeg") != NULL) {
             char posix_path[128];
             if (lv_path[0] == 'S' && lv_path[1] == ':') {
-                snprintf(posix_path, sizeof(posix_path), "%s", lv_path + 2);
+                snprintf(posix_path, sizeof(posix_path), "/sdcard%s", lv_path + 2);
             } else {
                 return LV_RESULT_INVALID;
             }
@@ -172,6 +172,73 @@ static void jpeg_esp_decoder_close(lv_image_decoder_t * decoder, lv_image_decode
     }
 }
 
+// --- Custom LVGL File System Driver for "S:" ---
+
+static void * fs_open(lv_fs_drv_t * drv, const char * path, lv_fs_mode_t mode) {
+    LV_UNUSED(drv);
+    const char * flags = "";
+
+    if(mode == LV_FS_MODE_WR) flags = "wb";
+    else if(mode == LV_FS_MODE_RD) flags = "rb";
+    else if(mode == (LV_FS_MODE_WR | LV_FS_MODE_RD)) flags = "rb+";
+
+    char posix_path[128];
+    // The path passed by LVGL will be exactly what's after the drive letter and colon.
+    // e.g., if we pass "S:/tiles-jpg/...", path is "/tiles-jpg/...".
+    snprintf(posix_path, sizeof(posix_path), "/sdcard%s", path);
+    ESP_LOGI("CustomFS", "fs_open called for: %s", posix_path);
+
+    FILE * f = fopen(posix_path, flags);
+    if(f == NULL) return NULL;
+
+    fseek(f, 0, SEEK_SET);
+
+    return (void *)f;
+}
+
+static lv_fs_res_t fs_close(lv_fs_drv_t * drv, void * file_p) {
+    LV_UNUSED(drv);
+    fclose((FILE *)file_p);
+    return LV_FS_RES_OK;
+}
+
+static lv_fs_res_t fs_read(lv_fs_drv_t * drv, void * file_p, void * buf, uint32_t btr, uint32_t * br) {
+    LV_UNUSED(drv);
+    *br = fread(buf, 1, btr, (FILE *)file_p);
+    return (int32_t)(*br) < 0 ? LV_FS_RES_UNKNOWN : LV_FS_RES_OK;
+}
+
+static lv_fs_res_t fs_seek(lv_fs_drv_t * drv, void * file_p, uint32_t pos, lv_fs_whence_t whence) {
+    LV_UNUSED(drv);
+    int w = SEEK_SET;
+    if(whence == LV_FS_SEEK_CUR) w = SEEK_CUR;
+    else if(whence == LV_FS_SEEK_END) w = SEEK_END;
+
+    int err = fseek((FILE *)file_p, pos, w);
+    return err == 0 ? LV_FS_RES_OK : LV_FS_RES_UNKNOWN;
+}
+
+static lv_fs_res_t fs_tell(lv_fs_drv_t * drv, void * file_p, uint32_t * pos_p) {
+    LV_UNUSED(drv);
+    *pos_p = ftell((FILE *)file_p);
+    return LV_FS_RES_OK;
+}
+
+void lv_custom_fs_init(void) {
+    static lv_fs_drv_t fs_drv;
+    lv_fs_drv_init(&fs_drv);
+
+    fs_drv.letter = 'S';
+    fs_drv.open_cb = fs_open;
+    fs_drv.close_cb = fs_close;
+    fs_drv.read_cb = fs_read;
+    fs_drv.seek_cb = fs_seek;
+    fs_drv.tell_cb = fs_tell;
+
+    lv_fs_drv_register(&fs_drv);
+    ESP_LOGI("CustomFS", "Registered custom FS driver for S:");
+}
+
 void TileEngine::lv_jpeg_esp_decoder_init() {
     ESP_LOGI("TileDecoder", "Registering optimized S3 JPEG decoder");
     lv_image_decoder_t * decoder = lv_image_decoder_create();
@@ -205,7 +272,7 @@ static lv_result_t rgb565_decoder_open(lv_image_decoder_t * decoder, lv_image_de
         if(strstr(lv_path, ".rgb565") != NULL) {
             char posix_path[128];
             if (lv_path[0] == 'S' && lv_path[1] == ':') {
-                snprintf(posix_path, sizeof(posix_path), "%s", lv_path + 2);
+                snprintf(posix_path, sizeof(posix_path), "/sdcard%s", lv_path + 2);
             } else {
                 return LV_RESULT_INVALID;
             }
@@ -275,8 +342,11 @@ void TileEngine::lv_rgb565_decoder_init() {
     lv_image_decoder_set_close_cb(decoder, rgb565_decoder_close);
 }
 
+extern void lv_custom_fs_init(void);
+
 void TileEngine::init() {
     ESP_LOGI(TAG, "Initializing TileEngine with container layer");
+    lv_custom_fs_init();
     loadConfig();
     lv_rgb565_decoder_init();
     lv_jpeg_esp_decoder_init();
@@ -347,7 +417,7 @@ void TileEngine::tileToLatLon(double x, double y, int zoom, double& lat, double&
 
 void TileEngine::getTilePath(char* buf, size_t buf_size, int zoom, int x, int y, bool for_lvgl) {
     if (for_lvgl) {
-        snprintf(buf, buf_size, "%s/sdcard%s/%d/%d/%d." TILE_EXTENTION, LV_DRIVE_PREFIX, TILE_PATH_BASE_DIR, zoom, x, y);
+        snprintf(buf, buf_size, "%s%s/%d/%d/%d." TILE_EXTENTION, LV_DRIVE_PREFIX, TILE_PATH_BASE_DIR, zoom, x, y);
     } else {
         snprintf(buf, buf_size, "/sdcard%s/%d/%d/%d." TILE_EXTENTION, TILE_PATH_BASE_DIR, zoom, x, y);
     }
