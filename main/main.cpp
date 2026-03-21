@@ -382,13 +382,14 @@ void lvgl_init_task(void *arg) {
 
 #if TEST_SCREEN
     lv_obj_t *scr = lv_screen_active();
-    lv_obj_set_style_bg_color(scr, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
 
-    lv_obj_t *label = lv_label_create(scr);
-    lv_label_set_text(label, "Hello World");
-    lv_obj_set_style_text_color(label, lv_color_hex(0x000000), LV_PART_MAIN);
-    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+    TileEngine::lv_jpeg_esp_decoder_init();
+
+    lv_obj_t *img = lv_image_create(scr);
+    lv_image_set_src(img, "S:/tiles-jpg/12/2034/1455.jpg");
+    lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
 #else
     // Initialize Tile Engine
     static TileEngine engine;
