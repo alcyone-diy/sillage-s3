@@ -39,7 +39,9 @@ extern "C" {
 static lv_result_t jpeg_esp_decoder_info(lv_image_decoder_t * decoder, lv_image_decoder_dsc_t * dsc, lv_image_header_t * header) {
     if(dsc->src_type == LV_IMAGE_SRC_FILE) {
         const char * path = (const char *)dsc->src;
+        ESP_LOGI(TAG, "[jpeg_esp_decoder_info] called for path: %s", path);
         if(strstr(path, ".jpg") != NULL || strstr(path, ".jpeg") != NULL) {
+            ESP_LOGI(TAG, "[jpeg_esp_decoder_info] Accepted %s", path);
             header->cf = LV_COLOR_FORMAT_RGB565;
             header->w = 256;
             header->h = 256;
@@ -482,6 +484,7 @@ void TileEngine::updateTiles(double lat, double lon, int zoom) {
                 tile.y_idx = tile_idx_y;
                 tile.zoom = zoom;
                 getTilePath(tile.path, sizeof(tile.path), zoom, tile_idx_x, tile_idx_y, true);
+                ESP_LOGI(TAG, "Setting tile src for Grid[%d,%d] (Tile %d,%d) to %s", r, c, tile_idx_x, tile_idx_y, tile.path);
                 lv_image_set_src(tile.img_obj, tile.path);
             }
         }
