@@ -25,7 +25,7 @@ private:
         int x_idx;
         int y_idx;
         int zoom;
-        char path[64];
+        char path[256];
     };
 
     static constexpr int TILE_SIZE = 256;

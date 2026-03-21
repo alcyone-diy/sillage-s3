@@ -17,6 +17,10 @@
 #include "sdmmc_cmd.h"
 #include "driver/sdspi_host.h"
 #include "TileEngine.hpp"
+#include "esp_wifi.h"
+#include "nvs_flash.h"
+#include "esp_event.h"
+#include "secrets.h"
 
 static const char *TAG = "TILES_PROTOTYPE";
 
@@ -78,8 +82,9 @@ struct TouchUserData {
 };
 
 void hardware_init(void);
-esp_err_t init_sd_card(void);
+void wifi_init(void);
 void lvgl_init_task(void *arg);
+extern void lv_http_fs_init(void);
 
 void i2c_scan(void) {
     ESP_LOGI(TAG, "Scanning I2C bus...");
@@ -92,9 +97,63 @@ void i2c_scan(void) {
 }
 
 extern "C" void app_main(void) {
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    wifi_init();
+
     hardware_init();
     lvgl_mux = xSemaphoreCreateRecursiveMutex();
     xTaskCreate(lvgl_init_task, "LVGL", 1024 * 16, NULL, 5, NULL);
+}
+
+static void wifi_event_handler(void* arg, esp_event_base_t event_base,
+                               int32_t event_id, void* event_data) {
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+        esp_wifi_connect();
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        esp_wifi_connect();
+        ESP_LOGI(TAG, "Retrying connection to the AP");
+    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+        ESP_LOGI(TAG, "Got IP:" IPSTR, IP2STR(&event->ip_info.ip));
+    }
+}
+
+void wifi_init(void) {
+    ESP_LOGI(TAG, "Initializing Wi-Fi...");
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    esp_netif_create_default_wifi_sta();
+
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    esp_event_handler_instance_t instance_any_id;
+    esp_event_handler_instance_t instance_got_ip;
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+                                                        ESP_EVENT_ANY_ID,
+                                                        &wifi_event_handler,
+                                                        NULL,
+                                                        &instance_any_id));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
+                                                        IP_EVENT_STA_GOT_IP,
+                                                        &wifi_event_handler,
+                                                        NULL,
+                                                        &instance_got_ip));
+
+    wifi_config_t wifi_config = {};
+    strcpy((char*)wifi_config.sta.ssid, WIFI_SSID);
+    strcpy((char*)wifi_config.sta.password, WIFI_PASSWORD);
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_LOGI(TAG, "Wi-Fi initialization complete.");
 }
 
 void hardware_init(void) {
@@ -244,48 +303,8 @@ void hardware_init(void) {
     ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_gt911(tp_io_handle, &tp_cfg, &tp_handle));
     ESP_LOGI(TAG, "Touch controller initialized successfully.");
 
-   // SD Card Initialization
-    esp_err_t ret = init_sd_card();
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to mount SD card (%s).", esp_err_to_name(ret));
-    }
-}
-
-esp_err_t init_sd_card(void) {
-    ESP_LOGI(TAG, "Initializing SD card...");
-
-    esp_vfs_fat_sdmmc_mount_config_t mount_config = {};
-    mount_config.format_if_mount_failed = false;
-    mount_config.max_files = 5;
-    mount_config.allocation_unit_size = 16 * 1024;
-
-    sdmmc_host_t host = SDSPI_HOST_DEFAULT();
-    host.max_freq_khz = 40000;
-
-    spi_bus_config_t bus_cfg = {};
-    bus_cfg.mosi_io_num = (gpio_num_t)SD_MOSI_PIN;
-    bus_cfg.miso_io_num = (gpio_num_t)SD_MISO_PIN;
-    bus_cfg.sclk_io_num = (gpio_num_t)SD_SCK_PIN;
-    bus_cfg.quadwp_io_num = -1;
-    bus_cfg.quadhd_io_num = -1;
-
-    esp_err_t ret = spi_bus_initialize((spi_host_device_t)host.slot, &bus_cfg, SPI_DMA_CH_AUTO);
-    if (ret != ESP_OK && ret != ESP_ERR_INVALID_STATE) return ret;
-
-    sdspi_device_config_t slot_config = SDSPI_DEVICE_CONFIG_DEFAULT();
-    slot_config.gpio_cs = (gpio_num_t)-1;
-    slot_config.host_id = (spi_host_device_t)host.slot;
-
-    ch422g_controller->setSDCardSelected(true);
-    vTaskDelay(pdMS_TO_TICKS(100));
-
-    ret = esp_vfs_fat_sdspi_mount("/sdcard", &host, &slot_config, &mount_config, &card);
-
-    if (ret != ESP_OK) {
-        ch422g_controller->setSDCardSelected(false);
-    }
-
-    return ret;
+    // SD Card Initialization bypassed for network downloads
+    ESP_LOGI(TAG, "SD Card initialization bypassed.");
 }
 
 // LVGL Flush Callback
@@ -378,6 +397,9 @@ void lvgl_init_task(void *arg) {
         lv_indev_set_user_data(indev, &touch_user_data);
         lv_indev_set_read_cb(indev, lvgl_touch_read_cb);
     }
+
+    // Register HTTP FS Driver
+    lv_http_fs_init();
 
     // Initialize Tile Engine
     static TileEngine engine;

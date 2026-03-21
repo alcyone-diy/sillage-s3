@@ -15,18 +15,17 @@
 #define JPEG_FORMAT   1
 #define PNG_FORMAT    2
 #define RGB565_FORMAT 3
-#define TILE_FORMAT JPEG_FORMAT
+#define TILE_FORMAT PNG_FORMAT
 
 #if TILE_FORMAT == JPEG_FORMAT
 #define TILE_EXTENTION "jpg"
-#define TILE_PATH_BASE_DIR "/tiles-jpg"
 #elif TILE_FORMAT == PNG_FORMAT
 #define TILE_EXTENTION "png"
-#define TILE_PATH_BASE_DIR "/tiles-png"
 #elif TILE_FORMAT == RGB565_FORMAT
 #define TILE_EXTENTION "rgb565"
-#define TILE_PATH_BASE_DIR "/tiles-rgb565"
 #endif
+
+#include "secrets.h"
 
 static const char* TAG = "TileEngine";
 
@@ -336,9 +335,9 @@ void TileEngine::tileToLatLon(double x, double y, int zoom, double& lat, double&
 
 void TileEngine::getTilePath(char* buf, size_t buf_size, int zoom, int x, int y, bool for_lvgl) {
     if (for_lvgl) {
-        snprintf(buf, buf_size, "%s%s/%d/%d/%d." TILE_EXTENTION, LV_DRIVE_PREFIX, TILE_PATH_BASE_DIR, zoom, x, y);
+        snprintf(buf, buf_size, "H:tiles.geogarage.com/%s/shom/%d/%d/%d." TILE_EXTENTION, GEOGARAGE_API_KEY, zoom, x, y);
     } else {
-        snprintf(buf, buf_size, "/sdcard%s/%d/%d/%d." TILE_EXTENTION, TILE_PATH_BASE_DIR, zoom, x, y);
+        snprintf(buf, buf_size, "https://tiles.geogarage.com/%s/shom/%d/%d/%d." TILE_EXTENTION, GEOGARAGE_API_KEY, zoom, x, y);
     }
 }
 
@@ -480,44 +479,9 @@ void TileEngine::updateTiles(double lat, double lon, int zoom) {
 }
 
 void TileEngine::loadConfig() {
-    char base_path[128];
-    snprintf(base_path, sizeof(base_path), "/sdcard%s", TILE_PATH_BASE_DIR);
-
-    DIR* dir = opendir(base_path);
-    if (dir == NULL) {
-        ESP_LOGW(TAG, "Could not open tiles directory: %s. Using defaults.", base_path);
-        _min_zoom = 1;
-        _max_zoom = 18;
-        return;
-    }
-
-    struct dirent* entry;
-    int min = 999;
-    int max = -1;
-
-    while ((entry = readdir(dir)) != NULL) {
-        // Skip . and ..
-        if (entry->d_name[0] == '.') continue;
-
-        // Try to parse the directory name as an integer (zoom level)
-        char* endptr;
-        int zoom = strtol(entry->d_name, &endptr, 10);
-        if (endptr != entry->d_name && *endptr == '\0') {
-            if (zoom < min) min = zoom;
-            if (zoom > max) max = zoom;
-        }
-    }
-    closedir(dir);
-
-    if (max != -1) {
-        _min_zoom = min;
-        _max_zoom = max;
-        ESP_LOGI(TAG, "Detected zoom range from SD directories: %d to %d", _min_zoom, _max_zoom);
-    } else {
-        ESP_LOGW(TAG, "No zoom level directories found in %s. Using defaults (1-18).", base_path);
-        _min_zoom = 1;
-        _max_zoom = 18;
-    }
+    _min_zoom = 1;
+    _max_zoom = 18;
+    ESP_LOGI(TAG, "Using internet geogarage tiles. Allowed zoom: %d to %d", _min_zoom, _max_zoom);
 }
 
 #if TILE_DEBUG
