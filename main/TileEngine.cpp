@@ -57,13 +57,17 @@ static lv_result_t jpeg_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_
         if(strstr(lv_path, ".jpg") != NULL || strstr(lv_path, ".jpeg") != NULL) {
             char posix_path[128];
             if (lv_path[0] == 'S' && lv_path[1] == ':') {
-                snprintf(posix_path, sizeof(posix_path), "/sdcard%s", lv_path + 2);
+                snprintf(posix_path, sizeof(posix_path), "%s", lv_path + 2);
             } else {
                 return LV_RESULT_INVALID;
             }
 
+            ESP_LOGI(TAG, "Opening JPEG file: %s", posix_path);
             FILE* f = fopen(posix_path, "rb");
-            if(!f) return LV_RESULT_INVALID;
+            if(!f) {
+                ESP_LOGE(TAG, "Failed to open file: %s", posix_path);
+                return LV_RESULT_INVALID;
+            }
 
             fseek(f, 0, SEEK_END);
             long file_size = ftell(f);
@@ -77,9 +81,12 @@ static lv_result_t jpeg_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_
             }
 
             if(!jpeg_data) {
+                ESP_LOGE(TAG, "Failed to allocate %ld bytes for JPEG data", file_size);
                 fclose(f);
                 return LV_RESULT_INVALID;
             }
+
+            ESP_LOGD(TAG, "Allocated %ld bytes for JPEG compressed data at %p", file_size, jpeg_data);
 
             fread(jpeg_data, 1, file_size, f);
             fclose(f);
@@ -140,11 +147,13 @@ static lv_result_t jpeg_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_
             free(jpeg_data);
 
             if (jerr != JPEG_ERR_OK) {
+                ESP_LOGE(TAG, "JPEG decode process failed: %d", jerr);
                 heap_caps_free(data);
                 lv_free(draw_buf);
                 return LV_RESULT_INVALID;
             }
 
+            ESP_LOGD(TAG, "Successfully decoded JPEG image");
             dsc->decoded = draw_buf;
             return LV_RESULT_OK;
         }
@@ -194,7 +203,7 @@ static lv_result_t rgb565_decoder_open(lv_image_decoder_t * decoder, lv_image_de
         if(strstr(lv_path, ".rgb565") != NULL) {
             char posix_path[128];
             if (lv_path[0] == 'S' && lv_path[1] == ':') {
-                snprintf(posix_path, sizeof(posix_path), "/sdcard%s", lv_path + 2);
+                snprintf(posix_path, sizeof(posix_path), "%s", lv_path + 2);
             } else {
                 return LV_RESULT_INVALID;
             }
@@ -336,7 +345,7 @@ void TileEngine::tileToLatLon(double x, double y, int zoom, double& lat, double&
 
 void TileEngine::getTilePath(char* buf, size_t buf_size, int zoom, int x, int y, bool for_lvgl) {
     if (for_lvgl) {
-        snprintf(buf, buf_size, "%s%s/%d/%d/%d." TILE_EXTENTION, LV_DRIVE_PREFIX, TILE_PATH_BASE_DIR, zoom, x, y);
+        snprintf(buf, buf_size, "%s/sdcard%s/%d/%d/%d." TILE_EXTENTION, LV_DRIVE_PREFIX, TILE_PATH_BASE_DIR, zoom, x, y);
     } else {
         snprintf(buf, buf_size, "/sdcard%s/%d/%d/%d." TILE_EXTENTION, TILE_PATH_BASE_DIR, zoom, x, y);
     }
