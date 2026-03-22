@@ -20,7 +20,7 @@
 
 static const char *TAG = "TILES_PROTOTYPE";
 
-#define TEST_SCREEN          1
+#define TEST_SCREEN          0
 // --- Hardware Pins ---
 #define I2C_SDA_PIN          8
 #define I2C_SCL_PIN          9
@@ -412,7 +412,8 @@ void lvgl_init_task(void *arg) {
     // Initialize Tile Engine
     static TileEngine engine;
     engine.init();
-    engine.setMapCenter(/*lat=*/-25.0, /*lon=*/25.0, /*zoom=*/8);
+    // Test coordinates around x=2034, y=1455 at zoom 12 (approx Lat=46.155, Lon=-1.23)
+    engine.setMapCenter(/*lat=*/46.155, /*lon=*/-1.23, /*zoom=*/12);
 #endif
 
     ESP_LOGI(TAG, "LVGL initialization complete. Entering main loop...");
