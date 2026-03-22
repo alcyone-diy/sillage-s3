@@ -507,8 +507,18 @@ void TileEngine::updateTiles(double lat, double lon, int zoom) {
                 tile.x_idx = tile_idx_x;
                 tile.y_idx = tile_idx_y;
                 tile.zoom = zoom;
-                getTilePath(tile.path, sizeof(tile.path), zoom, tile_idx_x, tile_idx_y, true);
-                lv_image_set_src(tile.img_obj, tile.path);
+
+                char posix_path[128];
+                getTilePath(posix_path, sizeof(posix_path), zoom, tile_idx_x, tile_idx_y, false);
+
+                struct stat st;
+                if (stat(posix_path, &st) == 0) {
+                    getTilePath(tile.path, sizeof(tile.path), zoom, tile_idx_x, tile_idx_y, true);
+                    lv_image_set_src(tile.img_obj, tile.path);
+                } else {
+                    // File not found on SD card; clear the image to prevent silent decoding errors
+                    lv_image_set_src(tile.img_obj, NULL);
+                }
             }
         }
     }
