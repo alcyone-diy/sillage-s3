@@ -503,18 +503,7 @@ void TileEngine::updateTiles(double lat, double lon, int zoom) {
                 tile.y_idx = tile_idx_y;
                 tile.zoom = zoom;
                 getTilePath(tile.path, sizeof(tile.path), zoom, tile_idx_x, tile_idx_y, true);
-
-                // Check if the file actually exists on the SD card before telling LVGL to use it
-                char posix_path[128];
-                getTilePath(posix_path, sizeof(posix_path), zoom, tile_idx_x, tile_idx_y, false);
-                struct stat st;
-                if (stat(posix_path, &st) == 0) {
-                    ESP_LOGI(TAG, "Tile exists: %s", posix_path);
-                    lv_image_set_src(tile.img_obj, tile.path);
-                } else {
-                    ESP_LOGW(TAG, "Tile NOT found: %s", posix_path);
-                    lv_image_set_src(tile.img_obj, NULL); // Clear image if missing
-                }
+                lv_image_set_src(tile.img_obj, tile.path);
             }
         }
     }
