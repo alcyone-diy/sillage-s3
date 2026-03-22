@@ -18,6 +18,7 @@ public:
 
     static void lv_rgb565_decoder_init();
     static void lv_jpeg_esp_decoder_init();
+    static void initImageDecoders();
 
 private:
     struct TileInfo {

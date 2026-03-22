@@ -17,6 +17,8 @@
 #define RGB565_FORMAT 3
 #define TILE_FORMAT PNG_FORMAT
 
+#include "lv_lodepng.h"
+
 #if TILE_FORMAT == JPEG_FORMAT
 #define TILE_EXTENTION "jpg"
 #define TILE_PATH_BASE_DIR "/tiles-jpg"
@@ -287,11 +289,23 @@ void TileEngine::lv_rgb565_decoder_init() {
     lv_image_decoder_set_close_cb(decoder, rgb565_decoder_close);
 }
 
+void TileEngine::initImageDecoders() {
+#if TILE_FORMAT == JPEG_FORMAT
+    lv_jpeg_esp_decoder_init();
+#elif TILE_FORMAT == PNG_FORMAT
+    ESP_LOGI("TileDecoder", "Initializing LodePNG decoder");
+    lv_lodepng_init();
+#elif TILE_FORMAT == RGB565_FORMAT
+    lv_rgb565_decoder_init();
+#else
+    ESP_LOGW("TileDecoder", "Unknown TILE_FORMAT specified!");
+#endif
+}
+
 void TileEngine::init() {
     ESP_LOGI(TAG, "Initializing TileEngine with container layer");
     loadConfig();
-    lv_rgb565_decoder_init();
-    lv_jpeg_esp_decoder_init();
+    initImageDecoders();
 
     _map_container = lv_obj_create(lv_screen_active());
     lv_obj_remove_style_all(_map_container);
