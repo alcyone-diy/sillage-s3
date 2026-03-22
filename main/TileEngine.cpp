@@ -17,15 +17,19 @@
 #define RGB565_FORMAT 3
 #define TILE_FORMAT PNG_FORMAT
 
+// Set to 1 to verify tiles exist on SD card before passing to LVGL.
+// Set to 0 to skip stat() for faster scrolling performance.
+#define VERIFY_TILE_EXISTS 1
+
 #if TILE_FORMAT == JPEG_FORMAT
 #define TILE_EXTENTION "jpg"
-#define TILE_PATH_BASE_DIR "/tiles-jpg"
+#define TILE_PATH_BASE_DIR "tiles-jpg"
 #elif TILE_FORMAT == PNG_FORMAT
 #define TILE_EXTENTION "png"
-#define TILE_PATH_BASE_DIR "/tiles-png"
+#define TILE_PATH_BASE_DIR "tiles-png"
 #elif TILE_FORMAT == RGB565_FORMAT
 #define TILE_EXTENTION "rgb565"
-#define TILE_PATH_BASE_DIR "/tiles-rgb565"
+#define TILE_PATH_BASE_DIR "tiles-rgb565"
 #endif
 
 static const char* TAG = "TileEngine";
@@ -287,11 +291,23 @@ void TileEngine::lv_rgb565_decoder_init() {
     lv_image_decoder_set_close_cb(decoder, rgb565_decoder_close);
 }
 
+void TileEngine::initImageDecoders() {
+#if TILE_FORMAT == JPEG_FORMAT
+    lv_jpeg_esp_decoder_init();
+#elif TILE_FORMAT == PNG_FORMAT
+    ESP_LOGI("TileDecoder", "Initializing LodePNG decoder");
+    lv_lodepng_init();
+#elif TILE_FORMAT == RGB565_FORMAT
+    lv_rgb565_decoder_init();
+#else
+    ESP_LOGW("TileDecoder", "Unknown TILE_FORMAT specified!");
+#endif
+}
+
 void TileEngine::init() {
     ESP_LOGI(TAG, "Initializing TileEngine with container layer");
     loadConfig();
-    lv_rgb565_decoder_init();
-    lv_jpeg_esp_decoder_init();
+    initImageDecoders();
 
     _map_container = lv_obj_create(lv_screen_active());
     lv_obj_remove_style_all(_map_container);
@@ -361,7 +377,7 @@ void TileEngine::getTilePath(char* buf, size_t buf_size, int zoom, int x, int y,
     if (for_lvgl) {
         snprintf(buf, buf_size, "%s%s/%d/%d/%d." TILE_EXTENTION, LV_DRIVE_PREFIX, TILE_PATH_BASE_DIR, zoom, x, y);
     } else {
-        snprintf(buf, buf_size, "/sdcard%s/%d/%d/%d." TILE_EXTENTION, TILE_PATH_BASE_DIR, zoom, x, y);
+        snprintf(buf, buf_size, "/sdcard/%s/%d/%d/%d." TILE_EXTENTION, TILE_PATH_BASE_DIR, zoom, x, y);
     }
 }
 
@@ -495,8 +511,24 @@ void TileEngine::updateTiles(double lat, double lon, int zoom) {
                 tile.x_idx = tile_idx_x;
                 tile.y_idx = tile_idx_y;
                 tile.zoom = zoom;
+
+                char posix_path[128];
+                getTilePath(posix_path, sizeof(posix_path), zoom, tile_idx_x, tile_idx_y, false);
+
+#if VERIFY_TILE_EXISTS
+                struct stat st;
+                if (stat(posix_path, &st) == 0) {
+                    getTilePath(tile.path, sizeof(tile.path), zoom, tile_idx_x, tile_idx_y, true);
+                    lv_image_set_src(tile.img_obj, tile.path);
+                } else {
+                    // File not found on SD card; clear the image to prevent silent decoding errors
+                    ESP_LOGW(TAG, "Tile missing from SD card: %s", posix_path);
+                    lv_image_set_src(tile.img_obj, NULL);
+                }
+#else
                 getTilePath(tile.path, sizeof(tile.path), zoom, tile_idx_x, tile_idx_y, true);
                 lv_image_set_src(tile.img_obj, tile.path);
+#endif
             }
         }
     }
@@ -504,7 +536,7 @@ void TileEngine::updateTiles(double lat, double lon, int zoom) {
 
 void TileEngine::loadConfig() {
     char base_path[128];
-    snprintf(base_path, sizeof(base_path), "/sdcard%s", TILE_PATH_BASE_DIR);
+    snprintf(base_path, sizeof(base_path), "/sdcard/%s", TILE_PATH_BASE_DIR);
 
     DIR* dir = opendir(base_path);
     if (dir == NULL) {

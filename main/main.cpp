@@ -17,6 +17,7 @@
 #include "sdmmc_cmd.h"
 #include "driver/sdspi_host.h"
 #include "TileEngine.hpp"
+#include <sys/stat.h>
 
 static const char *TAG = "TILES_PROTOTYPE";
 
@@ -95,7 +96,7 @@ void i2c_scan(void) {
 extern "C" void app_main(void) {
     hardware_init();
     lvgl_mux = xSemaphoreCreateRecursiveMutex();
-    xTaskCreate(lvgl_init_task, "LVGL", 1024 * 16, NULL, 5, NULL);
+    xTaskCreate(lvgl_init_task, "LVGL", 1024 * 32, NULL, 5, NULL);
 }
 
 void hardware_init(void) {
@@ -383,31 +384,30 @@ void lvgl_init_task(void *arg) {
 #if TEST_SCREEN
     ESP_LOGI(TAG, "Entering TEST_SCREEN mode");
     lv_obj_t *scr = lv_screen_active();
-    lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(scr, lv_color_hex(0x0000FF), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
 
-    TileEngine::lv_jpeg_esp_decoder_init();
+    TileEngine::initImageDecoders();
 
     const char* path = "/sdcard/tiles-png/12/2034/1455.png";
-    FILE* f = fopen(path, "rb");
-    if (f) {
-        fseek(f, 0, SEEK_END);
-        long size = ftell(f);
-        fclose(f);
-        ESP_LOGI(TAG, "SUCCESS: File %s found, size: %ld bytes", path, size);
-    } else {
-        ESP_LOGE(TAG, "ERROR: Could NOT open file %s", path);
-    }
+    const char* lv_path = "S:tiles-png/12/2034/1455.png";
 
-    lv_obj_t *img = lv_image_create(scr);
-    // When using CONFIG_LV_FS_STDIO_PATH="/sdcard/", the path is relative to it
-    // Wait, let's verify if the path should be S:tiles-jpg/... or S:/tiles-jpg/...
-    // By default in LVGL, the drive letter is stripped and the rest is appended to the root path.
-    // If root path is "/sdcard/", "S:tiles-jpg" becomes "/sdcard/tiles-jpg".
-    // If it's "S:/tiles-jpg", it becomes "/sdcard//tiles-jpg" which is also fine in POSIX.
-    lv_image_set_src(img, "S:/tiles-png/12/2034/1455.png");
-    lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
-    ESP_LOGI(TAG, "Image source set to S:/tiles-png/12/2034/1455.png");
+    struct stat st;
+    if (stat(path, &st) == 0) {
+        ESP_LOGI(TAG, "SUCCESS: File %s found via stat(), size: %ld bytes", path, (long)st.st_size);
+
+        lv_obj_t *img = lv_image_create(scr);
+        lv_image_set_src(img, lv_path);
+        lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
+
+        lv_obj_t *label = lv_label_create(scr);
+        lv_label_set_text(label, "PNG TEST ACTIVE");
+        lv_obj_align(label, LV_ALIGN_TOP_MID, 0, 20);
+
+        ESP_LOGI(TAG, "Image source set to %s", lv_path);
+    } else {
+        ESP_LOGE(TAG, "ERROR: stat() failed for %s", path);
+    }
 #else
     // Initialize Tile Engine
     static TileEngine engine;
