@@ -18,6 +18,7 @@
 #include "driver/sdspi_host.h"
 #include "TileEngine.hpp"
 #include <sys/stat.h>
+#include "src/draw/lv_image_decoder_private.h"
 
 static const char *TAG = "TILES_PROTOTYPE";
 
