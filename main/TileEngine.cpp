@@ -15,11 +15,11 @@
 #define JPEG_FORMAT   1
 #define PNG_FORMAT    2
 #define RGB565_FORMAT 3
-#define TILE_FORMAT   JPEG_FORMAT
+#define TILE_FORMAT   PNG_FORMAT
 
 // Set to 1 to verify tiles exist on SD card before passing to LVGL.
 // Set to 0 to skip stat() for faster scrolling performance.
-#define VERIFY_TILE_EXISTS 0
+#define VERIFY_TILE_EXISTS 1
 
 #if TILE_FORMAT == JPEG_FORMAT
 #define TILE_EXTENTION "jpg"
