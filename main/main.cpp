@@ -406,6 +406,23 @@ void lvgl_init_task(void *arg) {
             ESP_LOGE(TAG, "ERROR: lv_fs_open() failed with error %d for %s", fs_res, lv_path);
         }
 
+        // Manual Decoder Test
+        lv_image_decoder_dsc_t dsc;
+        lv_image_decoder_args_t args;
+        lv_memzero(&args, sizeof(lv_image_decoder_args_t));
+        args.no_cache = true;
+
+        lv_result_t res = lv_image_decoder_open(&dsc, lv_path, &args);
+        if (res == LV_RESULT_OK) {
+            ESP_LOGI(TAG, "SUCCESS: lv_image_decoder_open() successfully decoded %s", lv_path);
+            if (dsc.decoded) {
+                ESP_LOGI(TAG, "Decoded size: %dx%d, format: %d", dsc.header.w, dsc.header.h, dsc.header.cf);
+            }
+            lv_image_decoder_close(&dsc);
+        } else {
+            ESP_LOGE(TAG, "ERROR: lv_image_decoder_open() failed with result %d", res);
+        }
+
         lv_obj_t *img = lv_image_create(scr);
         lv_image_set_src(img, lv_path);
         lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
