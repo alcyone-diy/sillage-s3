@@ -12,6 +12,11 @@
 
 #include <sys/stat.h>
 
+extern "C" {
+    unsigned lodepng_decode32(unsigned char** out, unsigned* w, unsigned* h,
+                              const unsigned char* in, size_t insize);
+}
+
 #define JPEG_FORMAT   1
 #define PNG_FORMAT    2
 #define RGB565_FORMAT 3
@@ -196,6 +201,129 @@ void TileEngine::lv_jpeg_esp_decoder_init() {
     lv_image_decoder_set_close_cb(decoder, jpeg_esp_decoder_close);
 }
 
+static lv_result_t png_esp_decoder_info(lv_image_decoder_t * decoder, lv_image_decoder_dsc_t * dsc, lv_image_header_t * header) {
+    if(dsc->src_type == LV_IMAGE_SRC_FILE) {
+        const char * path = (const char *)dsc->src;
+        if(strstr(path, ".png") != NULL) {
+            header->cf = LV_COLOR_FORMAT_RGB565;
+            header->w = 256;
+            header->h = 256;
+            header->stride = 256 * 2;
+            header->magic = LV_IMAGE_HEADER_MAGIC;
+            return LV_RESULT_OK;
+        }
+    }
+    return LV_RESULT_INVALID;
+}
+
+static lv_result_t png_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_decoder_dsc_t * dsc) {
+    if(dsc->src_type == LV_IMAGE_SRC_FILE) {
+        const char * lv_path = (const char *)dsc->src;
+        if(strstr(lv_path, ".png") != NULL) {
+            char posix_path[128];
+            if (lv_path[0] == 'S' && lv_path[1] == ':') {
+                if (lv_path[2] == '/') {
+                    snprintf(posix_path, sizeof(posix_path), "/sdcard%s", lv_path + 2);
+                } else {
+                    snprintf(posix_path, sizeof(posix_path), "/sdcard/%s", lv_path + 2);
+                }
+            } else if (lv_path[0] == '/') {
+                snprintf(posix_path, sizeof(posix_path), "%s", lv_path);
+            } else {
+                return LV_RESULT_INVALID;
+            }
+
+            FILE* f = fopen(posix_path, "rb");
+            if(!f) {
+                return LV_RESULT_INVALID;
+            }
+
+            fseek(f, 0, SEEK_END);
+            long file_size = ftell(f);
+            fseek(f, 0, SEEK_SET);
+
+            uint8_t* png_data = (uint8_t*)heap_caps_malloc(file_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            if(!png_data) {
+                fclose(f);
+                return LV_RESULT_INVALID;
+            }
+
+            size_t bytes_read = fread(png_data, 1, file_size, f);
+            fclose(f);
+
+            if (bytes_read != file_size) {
+                free(png_data);
+                return LV_RESULT_INVALID;
+            }
+
+            unsigned char* decoded_rgba = NULL;
+            unsigned width = 0, height = 0;
+
+            unsigned error = lodepng_decode32(&decoded_rgba, &width, &height, png_data, file_size);
+            free(png_data);
+
+            if(error != 0 || decoded_rgba == NULL) {
+                ESP_LOGE("TileDecoder", "lodepng error %u", error);
+                if (decoded_rgba) free(decoded_rgba);
+                return LV_RESULT_INVALID;
+            }
+
+            uint32_t stride = width * 2;
+            uint32_t data_size = stride * height;
+
+            lv_draw_buf_t * draw_buf = (lv_draw_buf_t *)lv_malloc(sizeof(lv_draw_buf_t));
+            if(!draw_buf) {
+                free(decoded_rgba);
+                return LV_RESULT_INVALID;
+            }
+
+            void * data = heap_caps_aligned_alloc(16, data_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            if(!data) {
+                lv_free(draw_buf);
+                free(decoded_rgba);
+                return LV_RESULT_INVALID;
+            }
+
+            lv_draw_buf_init(draw_buf, width, height, LV_COLOR_FORMAT_RGB565, stride, data, data_size);
+
+            // Convert 32-bit RGBA (LodePNG output) to 16-bit RGB565 (Waveshare LCD format)
+            uint16_t* dest = (uint16_t*)draw_buf->data;
+            uint32_t* src = (uint32_t*)decoded_rgba;
+            for (uint32_t i = 0; i < width * height; i++) {
+                uint32_t c32 = src[i];
+                uint8_t r = (c32 >> 0) & 0xFF;
+                uint8_t g = (c32 >> 8) & 0xFF;
+                uint8_t b = (c32 >> 16) & 0xFF;
+                dest[i] = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+            }
+
+            free(decoded_rgba);
+
+            dsc->decoded = draw_buf;
+            return LV_RESULT_OK;
+        }
+    }
+    return LV_RESULT_INVALID;
+}
+
+static void png_esp_decoder_close(lv_image_decoder_t * decoder, lv_image_decoder_dsc_t * dsc) {
+    if(dsc->decoded) {
+        lv_draw_buf_t * draw_buf = (lv_draw_buf_t *)dsc->decoded;
+        if(draw_buf->data) heap_caps_free(draw_buf->data);
+        lv_free(draw_buf);
+        dsc->decoded = NULL;
+    }
+}
+
+void TileEngine::lv_png_esp_decoder_init() {
+    ESP_LOGI("TileDecoder", "Registering optimized S3 PNG decoder");
+    lv_image_decoder_t * decoder = lv_image_decoder_create();
+    lv_image_decoder_set_info_cb(decoder, png_esp_decoder_info);
+    lv_image_decoder_set_open_cb(decoder, png_esp_decoder_open);
+    lv_image_decoder_set_close_cb(decoder, png_esp_decoder_close);
+}
+
+
 TileEngine::TileEngine() : _map_container(nullptr), _tile_layer(nullptr) {}
 
 TileEngine::~TileEngine() {}
@@ -295,8 +423,8 @@ void TileEngine::initImageDecoders() {
 #if TILE_FORMAT == JPEG_FORMAT
     lv_jpeg_esp_decoder_init();
 #elif TILE_FORMAT == PNG_FORMAT
-    ESP_LOGI("TileDecoder", "Initializing LodePNG decoder");
-    lv_lodepng_init();
+    ESP_LOGI("TileDecoder", "Initializing custom LodePNG decoder");
+    lv_png_esp_decoder_init();
 #elif TILE_FORMAT == RGB565_FORMAT
     lv_rgb565_decoder_init();
 #else
