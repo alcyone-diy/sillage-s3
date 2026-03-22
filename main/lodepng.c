@@ -1,4 +1,5 @@
 #include "lodepng_alloc.h"
+#include <string.h>
 /*
 LodePNG version 20260119
 
@@ -120,14 +121,12 @@ to something as fast. */
 
 static void lodepng_memcpy(void* LODEPNG_RESTRICT dst,
                            const void* LODEPNG_RESTRICT src, size_t size) {
-  size_t i;
-  for(i = 0; i < size; i++) ((char*)dst)[i] = ((const char*)src)[i];
+  memcpy(dst, src, size);
 }
 
 static void lodepng_memset(void* LODEPNG_RESTRICT dst,
                            int value, size_t num) {
-  size_t i;
-  for(i = 0; i < num; i++) ((char*)dst)[i] = (char)value;
+  memset(dst, value, num);
 }
 
 /* does not check memory out of bounds, do not use on untrusted data */
