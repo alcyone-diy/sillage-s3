@@ -242,7 +242,14 @@ static lv_result_t png_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_d
             long file_size = ftell(f);
             fseek(f, 0, SEEK_SET);
 
-            uint8_t* png_data = (uint8_t*)heap_caps_malloc(file_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            // Use INTERNAL RAM for compressed data - MUCH faster for the decoder
+            uint8_t* png_data = (uint8_t*)heap_caps_malloc(file_size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+            if(!png_data) {
+                ESP_LOGW("TileDecoder", "INTERNAL RAM allocation failed, fallback to PSRAM");
+                // Fallback to PSRAM if internal is full, but it will be slower
+                png_data = (uint8_t*)heap_caps_malloc(file_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            }
+
             if(!png_data) {
                 fclose(f);
                 return LV_RESULT_INVALID;
