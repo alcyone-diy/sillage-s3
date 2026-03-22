@@ -52,7 +52,6 @@ static lv_result_t jpeg_esp_decoder_info(lv_image_decoder_t * decoder, lv_image_
 }
 
 static lv_result_t jpeg_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_decoder_dsc_t * dsc) {
-    ESP_LOGI("TileDecoder", "jpeg_esp_decoder_open called for src: %s", (const char*)dsc->src);
     if(dsc->src_type == LV_IMAGE_SRC_FILE) {
         const char * lv_path = (const char *)dsc->src;
         if(strstr(lv_path, ".jpg") != NULL || strstr(lv_path, ".jpeg") != NULL) {
@@ -68,11 +67,9 @@ static lv_result_t jpeg_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_
                 } else {
                     snprintf(posix_path, sizeof(posix_path), "/sdcard/%s", lv_path + 2);
                 }
-                ESP_LOGI("TileDecoder", "Resolved posix path from S: prefix: %s", posix_path);
             } else if (lv_path[0] == '/') {
                 // It's already a full posix path (perhaps LVGL FS driver stripped S: and prepended CONFIG_LV_FS_STDIO_PATH)
                 snprintf(posix_path, sizeof(posix_path), "%s", lv_path);
-                ESP_LOGI("TileDecoder", "Using provided posix path directly: %s", posix_path);
             } else {
                 ESP_LOGE("TileDecoder", "Invalid path format: %s", lv_path);
                 return LV_RESULT_INVALID;
@@ -87,7 +84,6 @@ static lv_result_t jpeg_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_
             fseek(f, 0, SEEK_END);
             long file_size = ftell(f);
             fseek(f, 0, SEEK_SET);
-            ESP_LOGI("TileDecoder", "File %s opened, size: %ld", posix_path, file_size);
 
             // Use INTERNAL RAM for compressed data - MUCH faster for the decoder
             uint8_t* jpeg_data = (uint8_t*)heap_caps_malloc(file_size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
@@ -103,8 +99,7 @@ static lv_result_t jpeg_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_
                 return LV_RESULT_INVALID;
             }
 
-            size_t bytes_read = fread(jpeg_data, 1, file_size, f);
-            ESP_LOGI("TileDecoder", "Read %zu bytes from %s", bytes_read, posix_path);
+            fread(jpeg_data, 1, file_size, f);
             fclose(f);
 
             jpeg_dec_config_t config = DEFAULT_JPEG_DEC_CONFIG();
@@ -139,7 +134,6 @@ static lv_result_t jpeg_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_
             uint32_t h = out_info.height;
             uint32_t stride = w * 2;
             uint32_t data_size = stride * h;
-            ESP_LOGI("TileDecoder", "JPEG parsed. W: %lu, H: %lu, Stride: %lu, Size: %lu", w, h, stride, data_size);
 
             lv_draw_buf_t * draw_buf = (lv_draw_buf_t *)lv_malloc(sizeof(lv_draw_buf_t));
             if(!draw_buf) {
@@ -175,7 +169,6 @@ static lv_result_t jpeg_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_
             }
 
             dsc->decoded = draw_buf;
-            ESP_LOGI("TileDecoder", "jpeg_esp_decoder_open SUCCESS!");
             return LV_RESULT_OK;
         }
     }
