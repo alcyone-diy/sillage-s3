@@ -351,8 +351,8 @@ void lvgl_init_task(void *arg) {
     lv_init();
     lv_tick_set_cb(lv_tick_cb);
 
-    // Resize image cache (4MB in PSRAM)
-    lv_image_cache_resize(4 * 1024 * 1024, false);
+    // Resize image cache (8MB in PSRAM)
+    lv_image_cache_resize(8 * 1024 * 1024, false);
 
     // Use full framebuffers in PSRAM for smooth double-buffering
     uint32_t buffer_size = LCD_H_RES * LCD_V_RES;
