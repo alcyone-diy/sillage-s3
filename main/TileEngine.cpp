@@ -57,11 +57,24 @@ static lv_result_t jpeg_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_
         const char * lv_path = (const char *)dsc->src;
         if(strstr(lv_path, ".jpg") != NULL || strstr(lv_path, ".jpeg") != NULL) {
             char posix_path[128];
+            // In LVGL 9, if we are using the FS API, the `src` passed to the decoder might already be
+            // the full system path if LVGL handles the prefix stripping, or it might just be the exact string "S:..."
+            // Let's make sure our decoder handles either case gracefully.
             if (lv_path[0] == 'S' && lv_path[1] == ':') {
-                snprintf(posix_path, sizeof(posix_path), "/sdcard%s", lv_path + 2);
-                ESP_LOGI("TileDecoder", "Resolved posix path: %s", posix_path);
+                // If it starts with S:, it means the LVGL FS driver didn't strip it, or we are bypassing the FS driver
+                // Let's strip the prefix and prepend /sdcard
+                if (lv_path[2] == '/') {
+                    snprintf(posix_path, sizeof(posix_path), "/sdcard%s", lv_path + 2);
+                } else {
+                    snprintf(posix_path, sizeof(posix_path), "/sdcard/%s", lv_path + 2);
+                }
+                ESP_LOGI("TileDecoder", "Resolved posix path from S: prefix: %s", posix_path);
+            } else if (lv_path[0] == '/') {
+                // It's already a full posix path (perhaps LVGL FS driver stripped S: and prepended CONFIG_LV_FS_STDIO_PATH)
+                snprintf(posix_path, sizeof(posix_path), "%s", lv_path);
+                ESP_LOGI("TileDecoder", "Using provided posix path directly: %s", posix_path);
             } else {
-                ESP_LOGE("TileDecoder", "Invalid prefix format in path: %s", lv_path);
+                ESP_LOGE("TileDecoder", "Invalid path format: %s", lv_path);
                 return LV_RESULT_INVALID;
             }
 

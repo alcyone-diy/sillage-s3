@@ -400,6 +400,11 @@ void lvgl_init_task(void *arg) {
     }
 
     lv_obj_t *img = lv_image_create(scr);
+    // When using CONFIG_LV_FS_STDIO_PATH="/sdcard/", the path is relative to it
+    // Wait, let's verify if the path should be S:tiles-jpg/... or S:/tiles-jpg/...
+    // By default in LVGL, the drive letter is stripped and the rest is appended to the root path.
+    // If root path is "/sdcard/", "S:tiles-jpg" becomes "/sdcard/tiles-jpg".
+    // If it's "S:/tiles-jpg", it becomes "/sdcard//tiles-jpg" which is also fine in POSIX.
     lv_image_set_src(img, "S:/tiles-jpg/12/2034/1455.jpg");
     lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
     ESP_LOGI(TAG, "Image source set to S:/tiles-jpg/12/2034/1455.jpg");
