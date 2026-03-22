@@ -19,13 +19,13 @@
 
 #if TILE_FORMAT == JPEG_FORMAT
 #define TILE_EXTENTION "jpg"
-#define TILE_PATH_BASE_DIR "/tiles-jpg"
+#define TILE_PATH_BASE_DIR "tiles-jpg"
 #elif TILE_FORMAT == PNG_FORMAT
 #define TILE_EXTENTION "png"
-#define TILE_PATH_BASE_DIR "/tiles-png"
+#define TILE_PATH_BASE_DIR "tiles-png"
 #elif TILE_FORMAT == RGB565_FORMAT
 #define TILE_EXTENTION "rgb565"
-#define TILE_PATH_BASE_DIR "/tiles-rgb565"
+#define TILE_PATH_BASE_DIR "tiles-rgb565"
 #endif
 
 static const char* TAG = "TileEngine";
@@ -373,7 +373,7 @@ void TileEngine::getTilePath(char* buf, size_t buf_size, int zoom, int x, int y,
     if (for_lvgl) {
         snprintf(buf, buf_size, "%s%s/%d/%d/%d." TILE_EXTENTION, LV_DRIVE_PREFIX, TILE_PATH_BASE_DIR, zoom, x, y);
     } else {
-        snprintf(buf, buf_size, "/sdcard%s/%d/%d/%d." TILE_EXTENTION, TILE_PATH_BASE_DIR, zoom, x, y);
+        snprintf(buf, buf_size, "/sdcard/%s/%d/%d/%d." TILE_EXTENTION, TILE_PATH_BASE_DIR, zoom, x, y);
     }
 }
 
@@ -516,7 +516,7 @@ void TileEngine::updateTiles(double lat, double lon, int zoom) {
 
 void TileEngine::loadConfig() {
     char base_path[128];
-    snprintf(base_path, sizeof(base_path), "/sdcard%s", TILE_PATH_BASE_DIR);
+    snprintf(base_path, sizeof(base_path), "/sdcard/%s", TILE_PATH_BASE_DIR);
 
     DIR* dir = opendir(base_path);
     if (dir == NULL) {

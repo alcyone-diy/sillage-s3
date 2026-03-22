@@ -96,7 +96,7 @@ void i2c_scan(void) {
 extern "C" void app_main(void) {
     hardware_init();
     lvgl_mux = xSemaphoreCreateRecursiveMutex();
-    xTaskCreate(lvgl_init_task, "LVGL", 1024 * 16, NULL, 5, NULL);
+    xTaskCreate(lvgl_init_task, "LVGL", 1024 * 32, NULL, 5, NULL);
 }
 
 void hardware_init(void) {
@@ -390,13 +390,26 @@ void lvgl_init_task(void *arg) {
     TileEngine::initImageDecoders();
 
     const char* path = "/sdcard/tiles-png/12/2034/1455.png";
+    const char* lv_path = "S:tiles-png/12/2034/1455.png";
+
     struct stat st;
     if (stat(path, &st) == 0) {
         ESP_LOGI(TAG, "SUCCESS: File %s found via stat(), size: %ld bytes", path, (long)st.st_size);
+
+        // Let's manually test if LVGL FS can open it
+        lv_fs_file_t fs_f;
+        lv_fs_res_t fs_res = lv_fs_open(&fs_f, lv_path, LV_FS_MODE_RD);
+        if (fs_res == LV_FS_RES_OK) {
+            ESP_LOGI(TAG, "SUCCESS: lv_fs_open() opened %s", lv_path);
+            lv_fs_close(&fs_f);
+        } else {
+            ESP_LOGE(TAG, "ERROR: lv_fs_open() failed with error %d for %s", fs_res, lv_path);
+        }
+
         lv_obj_t *img = lv_image_create(scr);
-        lv_image_set_src(img, "S:/tiles-png/12/2034/1455.png");
+        lv_image_set_src(img, lv_path);
         lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
-        ESP_LOGI(TAG, "Image source set to S:/tiles-png/12/2034/1455.png");
+        ESP_LOGI(TAG, "Image source set to %s", lv_path);
     } else {
         ESP_LOGE(TAG, "ERROR: stat() failed for %s", path);
     }
