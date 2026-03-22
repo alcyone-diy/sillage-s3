@@ -15,11 +15,11 @@
 #define JPEG_FORMAT   1
 #define PNG_FORMAT    2
 #define RGB565_FORMAT 3
-#define TILE_FORMAT PNG_FORMAT
+#define TILE_FORMAT   JPEG_FORMAT
 
 // Set to 1 to verify tiles exist on SD card before passing to LVGL.
 // Set to 0 to skip stat() for faster scrolling performance.
-#define VERIFY_TILE_EXISTS 1
+#define VERIFY_TILE_EXISTS 0
 
 #if TILE_FORMAT == JPEG_FORMAT
 #define TILE_EXTENTION "jpg"
@@ -512,23 +512,17 @@ void TileEngine::updateTiles(double lat, double lon, int zoom) {
                 tile.y_idx = tile_idx_y;
                 tile.zoom = zoom;
 
+#if VERIFY_TILE_EXISTS
                 char posix_path[128];
                 getTilePath(posix_path, sizeof(posix_path), zoom, tile_idx_x, tile_idx_y, false);
-
-#if VERIFY_TILE_EXISTS
                 struct stat st;
-                if (stat(posix_path, &st) == 0) {
-                    getTilePath(tile.path, sizeof(tile.path), zoom, tile_idx_x, tile_idx_y, true);
-                    lv_image_set_src(tile.img_obj, tile.path);
-                } else {
+                if (stat(posix_path, &st) != 0) {
                     // File not found on SD card; clear the image to prevent silent decoding errors
                     ESP_LOGW(TAG, "Tile missing from SD card: %s", posix_path);
-                    lv_image_set_src(tile.img_obj, NULL);
                 }
-#else
+#endif
                 getTilePath(tile.path, sizeof(tile.path), zoom, tile_idx_x, tile_idx_y, true);
                 lv_image_set_src(tile.img_obj, tile.path);
-#endif
             }
         }
     }
