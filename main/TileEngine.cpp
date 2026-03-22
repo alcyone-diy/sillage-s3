@@ -12,10 +12,7 @@
 
 #include <sys/stat.h>
 
-extern "C" {
-    unsigned lodepng_decode32(unsigned char** out, unsigned* w, unsigned* h,
-                              const unsigned char* in, size_t insize);
-}
+#include "lodepng.h"
 
 #define JPEG_FORMAT   1
 #define PNG_FORMAT    2
@@ -252,19 +249,19 @@ static lv_result_t png_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_d
             fclose(f);
 
             if (bytes_read != file_size) {
-                free(png_data);
+                heap_caps_free(png_data);
                 return LV_RESULT_INVALID;
             }
 
             unsigned char* decoded_rgba = NULL;
             unsigned width = 0, height = 0;
 
-            unsigned error = lodepng_decode32(&decoded_rgba, &width, &height, png_data, file_size);
-            free(png_data);
+            unsigned error = lodepng_decode32_mem(&decoded_rgba, &width, &height, png_data, file_size);
+            heap_caps_free(png_data);
 
             if(error != 0 || decoded_rgba == NULL) {
                 ESP_LOGE("TileDecoder", "lodepng error %u", error);
-                if (decoded_rgba) free(decoded_rgba);
+                if (decoded_rgba) lodepng_free_mem(decoded_rgba);
                 return LV_RESULT_INVALID;
             }
 
@@ -273,14 +270,14 @@ static lv_result_t png_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_d
 
             lv_draw_buf_t * draw_buf = (lv_draw_buf_t *)lv_malloc(sizeof(lv_draw_buf_t));
             if(!draw_buf) {
-                free(decoded_rgba);
+                lodepng_free_mem(decoded_rgba);
                 return LV_RESULT_INVALID;
             }
 
             void * data = heap_caps_aligned_alloc(16, data_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
             if(!data) {
                 lv_free(draw_buf);
-                free(decoded_rgba);
+                lodepng_free_mem(decoded_rgba);
                 return LV_RESULT_INVALID;
             }
 
@@ -297,7 +294,7 @@ static lv_result_t png_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_d
                 dest[i] = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
             }
 
-            free(decoded_rgba);
+            lodepng_free_mem(decoded_rgba);
 
             dsc->decoded = draw_buf;
             return LV_RESULT_OK;
