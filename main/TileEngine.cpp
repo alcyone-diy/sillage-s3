@@ -259,7 +259,7 @@ static lv_result_t png_esp_decoder_open(lv_image_decoder_t * decoder, lv_image_d
             unsigned char* decoded_rgba = NULL;
             unsigned width = 0, height = 0;
 
-            unsigned error = lodepng_decode32_mem(&decoded_rgba, &width, &height, png_data, file_size);
+            unsigned error = lodepng_decode32(&decoded_rgba, &width, &height, png_data, file_size);
             heap_caps_free(png_data);
 
             if(error != 0 || decoded_rgba == NULL) {

@@ -14,9 +14,9 @@
 extern "C" {
 #endif
 
-void* lodepng_malloc_mem(size_t size);
-void* lodepng_realloc_mem(void* ptr, size_t new_size);
-void lodepng_free_mem(void* ptr);
+void* lodepng_malloc(size_t size);
+void* lodepng_realloc(void* ptr, size_t new_size);
+void lodepng_free(void* ptr);
 
 #ifdef __cplusplus
 }

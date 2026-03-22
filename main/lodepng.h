@@ -83,7 +83,7 @@ or comment out LODEPNG_COMPILE_ERROR_TEXT below*/
 #endif
 
 /*Compile the default allocators (C's free, malloc and realloc). If you disable this,
-you can define the functions lodepng_free_mem, lodepng_malloc_mem and lodepng_realloc_mem in your
+you can define the functions lodepng_free, lodepng_malloc and lodepng_realloc in your
 source files with custom allocators.*/
 #ifndef LODEPNG_NO_COMPILE_ALLOCATORS
 /*pass -DLODEPNG_NO_COMPILE_ALLOCATORS to the compiler to disable the built-in ones,
@@ -153,7 +153,7 @@ unsigned lodepng_decode_memory(unsigned char** out, unsigned* w, unsigned* h,
                                LodePNGColorType colortype, unsigned bitdepth);
 
 /*Same as lodepng_decode_memory, but always decodes to 32-bit RGBA raw image*/
-unsigned lodepng_decode32_mem(unsigned char** out, unsigned* w, unsigned* h,
+unsigned lodepng_decode32(unsigned char** out, unsigned* w, unsigned* h,
                           const unsigned char* in, size_t insize);
 
 /*Same as lodepng_decode_memory, but always decodes to 24-bit RGB raw image*/
@@ -175,7 +175,7 @@ unsigned lodepng_decode_file(unsigned char** out, unsigned* w, unsigned* h,
 
 NOTE: Wide-character filenames are not supported, you can use an external method
 to handle such files and decode in-memory.*/
-unsigned lodepng_decode32_mem_file(unsigned char** out, unsigned* w, unsigned* h,
+unsigned lodepng_decode32_file(unsigned char** out, unsigned* w, unsigned* h,
                                const char* filename);
 
 /*Same as lodepng_decode_file, but always decodes to 24-bit RGB raw image.
@@ -1461,7 +1461,7 @@ Decoding converts a PNG compressed image to a raw pixel buffer.
 
 Most documentation on using the decoder is at its declarations in the header
 above. For C, simple decoding can be done with functions such as
-lodepng_decode32_mem, and more advanced decoding can be done with the struct
+lodepng_decode32, and more advanced decoding can be done with the struct
 LodePNGState and lodepng_decode. For C++, all decoding can be done with the
 various lodepng::decode functions, and lodepng::State can be used for advanced
 features.
@@ -1952,7 +1952,7 @@ int main(int argc, char *argv[]) {
   size_t width, height;
   const char* filename = argc > 1 ? argv[1] : "test.png";
 
-  error = lodepng_decode32_mem_file(&image, &width, &height, filename);
+  error = lodepng_decode32_file(&image, &width, &height, filename);
 
   if(error) printf("decoder error %u: %s\n", error, lodepng_error_text(error));
 
