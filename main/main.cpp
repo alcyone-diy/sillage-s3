@@ -384,7 +384,7 @@ void lvgl_init_task(void *arg) {
 #if TEST_SCREEN
     ESP_LOGI(TAG, "Entering TEST_SCREEN mode");
     lv_obj_t *scr = lv_screen_active();
-    lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(scr, lv_color_hex(0x0000FF), LV_PART_MAIN); // Blue background to see transparent PNGs
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
 
     TileEngine::initImageDecoders();
@@ -399,6 +399,11 @@ void lvgl_init_task(void *arg) {
         lv_obj_t *img = lv_image_create(scr);
         lv_image_set_src(img, lv_path);
         lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
+
+        lv_obj_t *label = lv_label_create(scr);
+        lv_label_set_text(label, "PNG TEST ACTIVE");
+        lv_obj_align(label, LV_ALIGN_TOP_MID, 0, 20);
+
         ESP_LOGI(TAG, "Image source set to %s", lv_path);
     } else {
         ESP_LOGE(TAG, "ERROR: stat() failed for %s", path);
