@@ -18,7 +18,6 @@
 #include "driver/sdspi_host.h"
 #include "TileEngine.hpp"
 #include <sys/stat.h>
-#include "src/draw/lv_image_decoder_private.h"
 
 static const char *TAG = "TILES_PROTOTYPE";
 
@@ -396,33 +395,6 @@ void lvgl_init_task(void *arg) {
     struct stat st;
     if (stat(path, &st) == 0) {
         ESP_LOGI(TAG, "SUCCESS: File %s found via stat(), size: %ld bytes", path, (long)st.st_size);
-
-        // Let's manually test if LVGL FS can open it
-        lv_fs_file_t fs_f;
-        lv_fs_res_t fs_res = lv_fs_open(&fs_f, lv_path, LV_FS_MODE_RD);
-        if (fs_res == LV_FS_RES_OK) {
-            ESP_LOGI(TAG, "SUCCESS: lv_fs_open() opened %s", lv_path);
-            lv_fs_close(&fs_f);
-        } else {
-            ESP_LOGE(TAG, "ERROR: lv_fs_open() failed with error %d for %s", fs_res, lv_path);
-        }
-
-        // Manual Decoder Test
-        lv_image_decoder_dsc_t dsc;
-        lv_image_decoder_args_t args;
-        lv_memzero(&args, sizeof(lv_image_decoder_args_t));
-        args.no_cache = true;
-
-        lv_result_t res = lv_image_decoder_open(&dsc, lv_path, &args);
-        if (res == LV_RESULT_OK) {
-            ESP_LOGI(TAG, "SUCCESS: lv_image_decoder_open() successfully decoded %s", lv_path);
-            if (dsc.decoded) {
-                ESP_LOGI(TAG, "Decoded size: %dx%d, format: %d", dsc.header.w, dsc.header.h, dsc.header.cf);
-            }
-            lv_image_decoder_close(&dsc);
-        } else {
-            ESP_LOGE(TAG, "ERROR: lv_image_decoder_open() failed with result %d", res);
-        }
 
         lv_obj_t *img = lv_image_create(scr);
         lv_image_set_src(img, lv_path);
