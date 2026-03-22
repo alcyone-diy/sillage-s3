@@ -17,8 +17,6 @@
 #define RGB565_FORMAT 3
 #define TILE_FORMAT PNG_FORMAT
 
-#include "lv_lodepng.h"
-
 #if TILE_FORMAT == JPEG_FORMAT
 #define TILE_EXTENTION "jpg"
 #define TILE_PATH_BASE_DIR "/tiles-jpg"
