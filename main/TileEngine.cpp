@@ -519,6 +519,8 @@ void TileEngine::updateTiles(double lat, double lon, int zoom) {
                 if (stat(posix_path, &st) != 0) {
                     // File not found on SD card; clear the image to prevent silent decoding errors
                     ESP_LOGW(TAG, "Tile missing from SD card: %s", posix_path);
+                    lv_image_set_src(tile.img_obj, NULL);
+                    continue;
                 }
 #endif
                 getTilePath(tile.path, sizeof(tile.path), zoom, tile_idx_x, tile_idx_y, true);
