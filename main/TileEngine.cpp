@@ -12,7 +12,10 @@
 
 #include <sys/stat.h>
 
+extern "C" {
+#define LODEPNG_NO_COMPILE_CPP
 #include "lodepng.h"
+}
 
 #define JPEG_FORMAT   1
 #define PNG_FORMAT    2
