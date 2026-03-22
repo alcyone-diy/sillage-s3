@@ -21,7 +21,7 @@
 
 static const char *TAG = "TILES_PROTOTYPE";
 
-#define TEST_SCREEN          0
+#define TEST_SCREEN          1
 // --- Hardware Pins ---
 #define I2C_SDA_PIN          8
 #define I2C_SCL_PIN          9
