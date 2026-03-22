@@ -388,7 +388,7 @@ void lvgl_init_task(void *arg) {
 
     TileEngine::lv_jpeg_esp_decoder_init();
 
-    const char* path = "/sdcard/tiles-jpg/12/2034/1455.jpg";
+    const char* path = "/sdcard/tiles-png/12/2034/1455.png";
     FILE* f = fopen(path, "rb");
     if (f) {
         fseek(f, 0, SEEK_END);
@@ -405,9 +405,9 @@ void lvgl_init_task(void *arg) {
     // By default in LVGL, the drive letter is stripped and the rest is appended to the root path.
     // If root path is "/sdcard/", "S:tiles-jpg" becomes "/sdcard/tiles-jpg".
     // If it's "S:/tiles-jpg", it becomes "/sdcard//tiles-jpg" which is also fine in POSIX.
-    lv_image_set_src(img, "S:/tiles-jpg/12/2034/1455.jpg");
+    lv_image_set_src(img, "S:/tiles-png/12/2034/1455.png");
     lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
-    ESP_LOGI(TAG, "Image source set to S:/tiles-jpg/12/2034/1455.jpg");
+    ESP_LOGI(TAG, "Image source set to S:/tiles-png/12/2034/1455.png");
 #else
     // Initialize Tile Engine
     static TileEngine engine;
